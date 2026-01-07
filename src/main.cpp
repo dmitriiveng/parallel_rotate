@@ -21,31 +21,34 @@
 #include <limits>
 #include <chrono>
 
-// swap_blocks_parallel
-// по сути многопоточный swap_ranges
 template <typename ForwardIt>
 void swap_blocks_parallel(ForwardIt a, ForwardIt b, size_t length, size_t threadCount) {
     if (length == 0) return;
-    threadCount = std::min(threadCount, length);
+    //ограничиваем число потоков
+    size_t maxThreads = std::max<size_t>(1, length / 1000);
+    threadCount = std::min(threadCount, maxThreads);    
+    //std::cout << "length " << length << ", maxThreads " << maxThreads << ", threadCount " << threadCount << std::endl;
 
-    //расчет размера чанков
     size_t baseSize = length / threadCount;
     size_t remainder = length % threadCount;
 
-    //пулл потоков
     std::vector<std::thread> threads;
-    ForwardIt blockA = a;
-    ForwardIt blockB = b;
 
+    size_t offset = 0;
     for (size_t i = 0; i < threadCount; ++i) {
-        //вычисление длинны отдельного блока (чанка)
         size_t blockSize = baseSize + (i < remainder ? 1 : 0);
         if (blockSize == 0) break;
 
-        ForwardIt aIt = blockA;
-        ForwardIt bIt = blockB;
+        threads.emplace_back([=]() mutable {
+            ForwardIt aIt = a;
+            ForwardIt bIt = b;
+            // двигаем итераторы до начала своего блока
+            for (size_t k = 0; k < offset; ++k) {
+                ++aIt;
+                ++bIt;
+            }
 
-        threads.emplace_back([aIt, bIt, blockSize]() mutable {
+            // теперь выполняем swap своего блока
             for (size_t j = 0; j < blockSize; ++j) {
                 std::swap(*aIt, *bIt);
                 ++aIt;
@@ -53,30 +56,30 @@ void swap_blocks_parallel(ForwardIt a, ForwardIt b, size_t length, size_t thread
             }
         });
 
-        //сдвигаем два следующих итаратора на нужное число элементов
-        for (size_t j = 0; j < blockSize; ++j) {
-            ++blockA;
-            ++blockB;
-        }
+        offset += blockSize; // смещение для следующего блока
     }
 
     for (auto& t : threads) t.join();
 }
 
-// rotate_forward_inplace
+// rotate_forward_inplace: parallel block-swap
 template <typename ForwardIt>
-void rotate_forward_inplace(ForwardIt begin, size_t totalLength, size_t middleIndex, size_t threadCount) {
-    if (middleIndex == 0 || middleIndex == totalLength) return;
+ForwardIt rotate_forward_inplace(ForwardIt first, ForwardIt middle, ForwardIt last, size_t threadCount) {
+    if (first == middle || middle == last) return first;
 
-    ForwardIt leftBegin = begin;
-    size_t leftLen = middleIndex;
+    // вычисляем длины блоков
+    size_t leftLen = 0;
+    for (ForwardIt it = first; it != middle; ++it) ++leftLen;
 
-    ForwardIt rightBegin = begin;
-    for (size_t i = 0; i < middleIndex; ++i) ++rightBegin;
-    size_t rightLen = totalLength - middleIndex;
+    size_t rightLen = 0;
+    for (ForwardIt it = middle; it != last; ++it) ++rightLen;
+
+    ForwardIt leftBegin = first;
+    ForwardIt rightBegin = middle;
 
     while (leftLen > 0 && rightLen > 0) {
-        if (leftLen <= rightLen) {
+        if /*находим меньший блок*/ (leftLen <= rightLen) {
+            // swap leftLen элементов из left с началом right
             ForwardIt rightPart = rightBegin;
             for (size_t i = 0; i < leftLen; ++i) ++rightPart;
 
@@ -86,6 +89,7 @@ void rotate_forward_inplace(ForwardIt begin, size_t totalLength, size_t middleIn
             rightBegin = rightPart;
             rightLen -= leftLen;
         } else {
+            // swap конец left с началом right
             ForwardIt leftPart = leftBegin;
             for (size_t i = 0; i < leftLen - rightLen; ++i) ++leftPart;
 
@@ -94,7 +98,10 @@ void rotate_forward_inplace(ForwardIt begin, size_t totalLength, size_t middleIn
             leftLen -= rightLen;
         }
     }
+
+    return leftBegin; // так же, как std::rotate возвращает новый "first"
 }
+
 
 //benchmark helper
 template <typename F>
@@ -119,7 +126,9 @@ template <typename Container>
 void benchmark_rotate_generic(const Container& data, size_t middle, size_t threads, size_t repeats) {
     auto run_custom = [&](size_t t) {
         Container c = data;
-        rotate_forward_inplace(c.begin(), c.size(), middle, t);
+        auto it = c.begin();
+        std::advance(it, middle);
+        rotate_forward_inplace(c.begin(), it, c.end(), t);
     };
 
     auto run_std = [&]() {
@@ -138,6 +147,7 @@ void benchmark_rotate_generic(const Container& data, size_t middle, size_t threa
     std::cout << "Custom rotate (" << threads << " threads): " << tN / 1e6 << " ms\n";
     std::cout << "Speedup: " << double(t1) / double(tN) << "x\n";
     std::cout << "std::rotate: " << t_std / 1e6 << " ms\n\n";
+    std::cout << "Speedup for std::rotate: " << double(t_std) / double(tN) << "x\n";
 }
 
 
@@ -161,7 +171,9 @@ void print_container(const T& c) {
 void test_cases() {
     {
         std::vector<int> v = {1,2,3,4,5,6};
-        rotate_forward_inplace(v.begin(), v.size(), 2, 2);
+        auto mid = v.begin();
+        std::advance(mid, 2);
+        rotate_forward_inplace(v.begin(), mid, v.end(), 2);
         print_container(v); // 3 4 5 6 1 2
     }
 }
@@ -173,15 +185,15 @@ int main() {
 
     std::cout << "\n==== Benchmark (vector) ====\n";
     size_t hw = std::thread::hardware_concurrency();
-    if (hw == 0) hw = 4; // fallback
+    if (hw == 0) hw = 4;
 
     std::vector<int> data1(1'000'000);
     std::iota(data1.begin(), data1.end(), 0);
-    benchmark_rotate_generic(data1, 456'789, hw, 3);
+    benchmark_rotate_generic(data1, 434'230, hw, 3);
 
-    std::vector<int> data2(1000000000);
+    std::vector<int> data2(2'000'000'000);
     std::iota(data2.begin(), data2.end(), 0);
-    benchmark_rotate_generic(data2, 400'345'678, hw, 2);
+    benchmark_rotate_generic(data2, 533'324'500, hw, 1);
 
     return 0;
 }

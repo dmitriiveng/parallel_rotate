@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+find_package(Boost REQUIRED)
+
 set(NAME rotate)
 
 file(GLOB_RECURSE SOURCES "src/*.cpp")
@@ -17,5 +19,6 @@ target_include_directories(${NAME}
     PUBLIC
     src/_include
 )
+target_include_directories(${NAME} PRIVATE ${Boost_INCLUDE_DIRS})
 
-target_link_libraries(${NAME} PRIVATE pthread)
+target_link_libraries(${NAME} PRIVATE pthread ${Boost_LIBRARIES})
