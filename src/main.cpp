@@ -26,8 +26,21 @@ template <typename ForwardIt>
 std::pair<ForwardIt, ForwardIt> swap_blocks_parallel(ForwardIt a, ForwardIt b, size_t length, size_t threadCount, boost::asio::thread_pool &pool) {
     if (length == 0) return std::pair<ForwardIt, ForwardIt>{a, b};
 
+    //оптимизация, переход на однопоточку при малых length, работать и без него будет но медленнее
+    constexpr size_t MIN_PARALLEL_LENGTH = 1000;
+    if (length <= MIN_PARALLEL_LENGTH || threadCount == 1) {
+        ForwardIt itA = a;
+        ForwardIt itB = b;
+        for (size_t i = 0; i < length; ++i, ++itA, ++itB) {
+            std::iter_swap(itA, itB);
+        }
+        std::advance(a, length);
+        std::advance(b, length);
+        return {a, b};
+    }
+
     //ограничиваем число потоков
-    size_t maxThreads = std::max<size_t>(1, length / 1000);
+    size_t maxThreads = std::max<size_t>(1, length / MIN_PARALLEL_LENGTH);
     threadCount = std::min(threadCount, maxThreads);
 
     size_t baseSize = length / threadCount;
@@ -35,8 +48,6 @@ std::pair<ForwardIt, ForwardIt> swap_blocks_parallel(ForwardIt a, ForwardIt b, s
 
     ForwardIt aIt = a;
     ForwardIt bIt = b;
-
-    std::pair<ForwardIt, ForwardIt> rv_end_iterators{};
 
     for (size_t i = 0; i < threadCount; ++i) {
         size_t blockSize = baseSize + (i < remainder ? 1 : 0);
@@ -55,12 +66,9 @@ std::pair<ForwardIt, ForwardIt> swap_blocks_parallel(ForwardIt a, ForwardIt b, s
 
         // сдвигаем итераторы на следующий блок (то, что за нас делал бы spliterator)
         for (size_t j = 0; j < blockSize; ++j) { ++aIt; ++bIt; }
-        if(i == threadCount - 1){
-            rv_end_iterators.first = aIt;
-            rv_end_iterators.second = bIt;
-        }
     }
-    return rv_end_iterators;
+
+    return std::pair<ForwardIt, ForwardIt>{aIt, bIt}; // итераторы на end свапнутых областей
 }
 
 template <typename ForwardIt>
@@ -220,21 +228,17 @@ int main() {
     size_t hw = std::thread::hardware_concurrency();
     if (hw == 0) hw = 4;
 
-    std::forward_list<int> data1(1'000);
+    std::forward_list<int> data1(1'000'000);
     std::iota(data1.begin(), data1.end(), 0);
-    benchmark_rotate_generic(data1, 430, hw, 30);
+    benchmark_rotate_generic(data1, 2'230, hw, 5);
 
-    std::forward_list<int> data2(10'000);
+    std::forward_list<int> data2(10'000'000);
     std::iota(data2.begin(), data2.end(), 0);
-    benchmark_rotate_generic(data2, 4'230, hw, 30);
+    benchmark_rotate_generic(data2, 2'000'000, hw, 5);
 
-    std::forward_list<int> data3(100'000);
+    std::forward_list<int> data3(100'000'000);
     std::iota(data3.begin(), data3.end(), 0);
-    benchmark_rotate_generic(data3, 53'334, hw, 30);
-
-    std::forward_list<int> data4(10'000'000);
-    std::iota(data4.begin(), data4.end(), 0);
-    benchmark_rotate_generic(data4, 4'230'000, hw, 5);
+    benchmark_rotate_generic(data3, 4'230'000, hw, 5);
 
     return 0;
 }
