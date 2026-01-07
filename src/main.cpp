@@ -15,7 +15,7 @@ int main() {
 
     std::forward_list<int> data2(10'000'000);
     std::iota(data2.begin(), data2.end(), 0);
-    benchmark_rotate_generic(data2, 2'000'000, hw, 5);
+    benchmark_rotate_generic(data2, 5'000'000, hw, 5);
 
     std::forward_list<int> data3(100'000'000);
     std::iota(data3.begin(), data3.end(), 0);

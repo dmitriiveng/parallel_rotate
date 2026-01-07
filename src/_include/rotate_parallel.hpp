@@ -21,8 +21,7 @@
 #include <limits>
 #include <chrono>
 #include <boost/asio.hpp>
-
-#include "rotate_parallel.hpp"
+#include <semaphore>
 
 template <typename ForwardIt>
 std::pair<ForwardIt, ForwardIt> swap_blocks_parallel(ForwardIt a, ForwardIt b, size_t length, size_t threadCount, boost::asio::thread_pool &pool) {
@@ -51,6 +50,9 @@ std::pair<ForwardIt, ForwardIt> swap_blocks_parallel(ForwardIt a, ForwardIt b, s
     ForwardIt aIt = a;
     ForwardIt bIt = b;
 
+    //work_guard, чтобы пул не завершился раньше времени
+    std::counting_semaphore<> sem(0);
+
     for (size_t i = 0; i < threadCount; ++i) {
         size_t blockSize = baseSize + (i < remainder ? 1 : 0);
         if (blockSize == 0) break;
@@ -58,17 +60,22 @@ std::pair<ForwardIt, ForwardIt> swap_blocks_parallel(ForwardIt a, ForwardIt b, s
         ForwardIt blockA = aIt;
         ForwardIt blockB = bIt;
 
-        boost::asio::post(pool, [blockA, blockB, blockSize]() mutable {
+        boost::asio::post(pool, [blockA, blockB, blockSize, &sem]() mutable {
             ForwardIt itA = blockA;
             ForwardIt itB = blockB;
             for (size_t j = 0; j < blockSize; ++j, ++itA, ++itB) {
                 std::iter_swap(itA, itB);
             }
+            sem.release();
         });
 
         // сдвигаем итераторы на следующий блок (то, что за нас делал бы spliterator)
         for (size_t j = 0; j < blockSize; ++j) { ++aIt; ++bIt; }
     }
+
+    for (size_t i = 0; i < threadCount; ++i) {
+        sem.acquire(); // уменьшаем счётчик, блокируется, если задачи не завершены
+    } // вся эта система с счетчиками <semaphore> нужна чтобы предотвратить возможный дата рейс между вызовами ф-ции
 
     return std::pair<ForwardIt, ForwardIt>{aIt, bIt}; // итераторы на end свапнутых областей
 }
@@ -98,11 +105,12 @@ ForwardIt rotate_forward_inplace(ForwardIt first, ForwardIt middle, ForwardIt la
             rightLen -= leftLen;
 
         } else {
-            // левый блок больше, свапаем правый блок с последней частью левого блока
+            // левый блок больше, свапаем правый блок с началом левого блока той же длинны
             std::pair<ForwardIt, ForwardIt> rv_end_iterators = 
                 swap_blocks_parallel(leftBegin, rightBegin, rightLen, threadCount, pool);
 
-            // теперь оставшаяся часть левого блока
+            // теперь нужно обновить размер области слева и 
+            // поменять leftBegin, который соответствует rv_end_iterators.first
             leftLen -= rightLen;
             leftBegin = rv_end_iterators.first;
         }

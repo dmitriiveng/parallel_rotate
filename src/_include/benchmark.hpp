@@ -33,6 +33,7 @@ long long time_ns(F&& f, size_t iterations = 1) {
 //benchmark
 template <typename Container>
 void benchmark_rotate_generic(const Container& data, size_t middle, size_t threads, size_t repeats) {
+
     auto run_custom = [&](size_t t) {
         Container c = data;
         auto it = c.begin();
