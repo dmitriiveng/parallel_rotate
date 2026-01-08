@@ -1,6 +1,7 @@
 #pragma once
 
 #include "rotate_parallel.hpp"
+#include "rotate_parallel++.hpp"
 
 //benchmark helper
 template <typename F>
@@ -41,6 +42,13 @@ void benchmark_rotate_generic(const Container& data, size_t middle, size_t threa
         rotate_forward_inplace(c.begin(), it, c.end(), t);
     };
 
+    auto run_custom2 = [&](size_t t) {
+        Container c = data;
+        auto it = c.begin();
+        std::advance(it, middle);
+        rotate_forward_inplace_low_middle(c.begin(), it, c.end(), t);
+    };
+
     auto run_std = [&]() {
         Container c = data;
         auto it = c.begin();
@@ -50,11 +58,13 @@ void benchmark_rotate_generic(const Container& data, size_t middle, size_t threa
 
     long long t1 = time_ns([&]() { run_custom(1); }, repeats);
     long long tN = time_ns([&]() { run_custom(threads); }, repeats);
+    long long tN2 = time_ns([&]() { run_custom2(threads); }, repeats);
     long long t_std = time_ns([&]() { run_std(); }, repeats);
 
     //std::cout << "Size: " << data.size() << ", Middle: " << middle << "\n";
     std::cout << "Custom rotate (1 thread): " << t1 / 1e6 << " ms\n";
     std::cout << "Custom rotate (" << threads << " threads): " << tN / 1e6 << " ms\n";
+    std::cout << "Custom rotate 2 (" << threads << " threads): " << tN2 / 1e6 << " ms\n";
     std::cout << "Speedup: " << double(t1) / double(tN) << "x\n";
     std::cout << "std::rotate: " << t_std / 1e6 << " ms\n";
     std::cout << "Speedup for std::rotate: " << double(t_std) / double(tN) << "x\n\n";
@@ -99,12 +109,12 @@ void test_cases() {
     }
 
     {
-        std::cout << "test\n";
-        std::forward_list<int> v = {1,2,3,4,5,6,7,8,9,10};
+        std::cout << "test_low_middle\n";
+        std::forward_list<int> v = {1,2,3,4,5};
         print_container(v);
         auto mid = v.begin();
-        std::advance(mid, 4);
-        rotate_forward_inplace(v.begin(), mid, v.end(), 2);
+        std::advance(mid, 2);
+        rotate_forward_inplace_low_middle(v.begin(), mid, v.end(), 2);
         print_container(v);
     }
 
@@ -116,5 +126,35 @@ void test_cases() {
         std::advance(mid, 7);
         rotate_forward_inplace(v.begin(), mid, v.end(), 2);
         print_container(v);
+    }
+
+    {
+        std::cout << "test_low_middle\n";
+        std::forward_list<int> v = {1,2,3,4,5,6,7,8,9,10};
+        print_container(v);
+        auto mid = v.begin();
+        std::advance(mid, 7);
+        rotate_forward_inplace_low_middle(v.begin(), mid, v.end(), 2);
+        print_container(v);
+    }
+
+    {
+        std::cout << "test\n";
+        std::forward_list<int> v = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20};
+        print_container(v);
+        auto mid = v.begin();
+        std::advance(mid, 11);
+        rotate_forward_inplace(v.begin(), mid, v.end(), 2);
+        print_container(v);
+
+        std::forward_list<int> v2 = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20};
+        auto mid2 = v2.begin();
+        std::advance(mid2, 11);
+        std::rotate(v2.begin(), mid2, v2.end());
+
+        int e = static_cast<int>(v == v2);
+        print_container(v2);
+
+        std::cout << "same as std::rotate: " << e << std::endl;
     }
 }

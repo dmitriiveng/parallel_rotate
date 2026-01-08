@@ -1,5 +1,13 @@
 #include "rotate_parallel.hpp"
+#include "rotate_parallel++.hpp"
 #include "benchmark.hpp"
+
+template <typename Container>
+Container build(size_t len) {
+    Container data(len);
+    std::iota(data.begin(), data.end(), 0);
+    return data;
+}
 
 int main() {
     std::cout << "==== Test Cases ====\n";
@@ -9,17 +17,19 @@ int main() {
     size_t hw = std::thread::hardware_concurrency();
     if (hw == 0) hw = 4;
 
-    std::forward_list<int> data1(1'000'000);
-    std::iota(data1.begin(), data1.end(), 0);
-    benchmark_rotate_generic(data1, 2'230, hw, 5);
+    /*
+    benchmark_rotate_generic(build<std::forward_list<int>>(1'000'000), 1000, hw, 10);
+    benchmark_rotate_generic(build<std::forward_list<int>>(1'000'000), 2000, hw, 10);
+    benchmark_rotate_generic(build<std::forward_list<int>>(1'000'000), 3000, hw, 10);
+    benchmark_rotate_generic(build<std::forward_list<int>>(1'000'000), 4000, hw, 10);
+    benchmark_rotate_generic(build<std::forward_list<int>>(1'000'000), 5000, hw, 10);
+    benchmark_rotate_generic(build<std::forward_list<int>>(1'000'000), 6000, hw, 10);
+    benchmark_rotate_generic(build<std::forward_list<int>>(1'000'000), 7000, hw, 10);
+    benchmark_rotate_generic(build<std::forward_list<int>>(1'000'000), 8000, hw, 10);
+    benchmark_rotate_generic(build<std::forward_list<int>>(1'000'000), 9000, hw, 10);
+    */
 
-    std::forward_list<int> data2(10'000'000);
-    std::iota(data2.begin(), data2.end(), 0);
-    benchmark_rotate_generic(data2, 5'000'000, hw, 5);
-
-    std::forward_list<int> data3(100'000'000);
-    std::iota(data3.begin(), data3.end(), 0);
-    benchmark_rotate_generic(data3, 40'230'000, hw, 5);
+    benchmark_rotate_generic(build<std::forward_list<int>>(100'000'000), 1000, hw, 10);
 
     return 0;
 }
