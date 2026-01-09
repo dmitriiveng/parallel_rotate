@@ -113,12 +113,11 @@ template <typename ForwardIt>
 std::pair<ForwardIt, ForwardIt> swap_blocks_parallel(
     ForwardIt a, ForwardIt b, 
     size_t length, 
-    size_t threadCount, 
+    size_t threadCount, size_t MIN_PARALLEL_LENGTH,
     boost::asio::thread_pool &pool) {
     if (length == 0) return std::pair<ForwardIt, ForwardIt>{a, b};
 
     //оптимизация, переход на однопоточку при малых length, работать и без него будет но медленнее
-    constexpr size_t MIN_PARALLEL_LENGTH = 1000;
     if (length <= MIN_PARALLEL_LENGTH || threadCount == 1) {
         ForwardIt itA = a;
         ForwardIt itB = b;
@@ -174,6 +173,7 @@ template <typename ForwardIt>
 ForwardIt rotate_forward_inplace(ForwardIt first, ForwardIt middle, ForwardIt last, size_t threadCount) {
     if (first == middle || middle == last) return first;
 
+    constexpr size_t MIN_PARALLEL_LENGTH = 1000;
     boost::asio::thread_pool pool(threadCount);
 
     size_t leftLen = std::distance(first, middle);
@@ -185,7 +185,27 @@ ForwardIt rotate_forward_inplace(ForwardIt first, ForwardIt middle, ForwardIt la
     while (leftLen > 0 && rightLen > 0) {
         size_t block_count = leftLen < rightLen ? (leftLen / rightLen) : (rightLen / leftLen);
         size_t block_size = leftLen < rightLen ? leftLen : rightLen;
-        if(block_count >= threadCount ){//тут надо написать более правильное условие
+
+        if(block_count <= threadCount && block_size >= threadCount * MIN_PARALLEL_LENGTH){
+            if (leftLen <= rightLen) {
+                // свапаем левый блок с первой частью правого блока той же длины
+                std::pair<ForwardIt, ForwardIt> rv_end_iterators = 
+                    swap_blocks_parallel(leftBegin, rightBegin, leftLen, threadCount, MIN_PARALLEL_LENGTH, pool);
+                // после свапа левый блок сдвинулся вправо
+                leftBegin = rightBegin;
+                rightBegin = rv_end_iterators.second;
+                rightLen -= leftLen;
+            } else {
+                // левый блок больше, свапаем правый блок с началом левого блока той же длинны
+                std::pair<ForwardIt, ForwardIt> rv_end_iterators = 
+                    swap_blocks_parallel(leftBegin, rightBegin, rightLen, threadCount, MIN_PARALLEL_LENGTH, pool);
+                // теперь нужно обновить размер области слева и 
+                // поменять leftBegin, который соответствует rv_end_iterators.first
+                leftLen -= rightLen;
+                leftBegin = rv_end_iterators.first;
+            }
+        }
+        else{
             std::pair<ForwardIt, ForwardIt> rv_iterators = 
                 rotate_aliquot_forward_inplace(leftBegin, rightBegin, leftLen, rightLen, threadCount, pool);
             
@@ -194,25 +214,6 @@ ForwardIt rotate_forward_inplace(ForwardIt first, ForwardIt middle, ForwardIt la
 
             if(leftLen < rightLen) rightLen %= leftLen;
             else leftLen %= rightLen;
-        }
-        else{
-            if (leftLen <= rightLen) {
-                // свапаем левый блок с первой частью правого блока той же длины
-                std::pair<ForwardIt, ForwardIt> rv_end_iterators = 
-                    swap_blocks_parallel(leftBegin, rightBegin, leftLen, threadCount, pool);
-                // после свапа левый блок сдвинулся вправо
-                leftBegin = rightBegin;
-                rightBegin = rv_end_iterators.second;
-                rightLen -= leftLen;
-            } else {
-                // левый блок больше, свапаем правый блок с началом левого блока той же длинны
-                std::pair<ForwardIt, ForwardIt> rv_end_iterators = 
-                    swap_blocks_parallel(leftBegin, rightBegin, rightLen, threadCount, pool);
-                // теперь нужно обновить размер области слева и 
-                // поменять leftBegin, который соответствует rv_end_iterators.first
-                leftLen -= rightLen;
-                leftBegin = rv_end_iterators.first;
-            }
         }
     }
 
@@ -253,6 +254,7 @@ template <typename ForwardIt>
 ForwardIt rotate_forward_inplace_swap_blocks(ForwardIt first, ForwardIt middle, ForwardIt last, size_t threadCount) {
     if (first == middle || middle == last) return first;
 
+    constexpr size_t MIN_PARALLEL_LENGTH = 1000;
     boost::asio::thread_pool pool(threadCount);
 
     size_t leftLen = std::distance(first, middle);
@@ -266,7 +268,7 @@ ForwardIt rotate_forward_inplace_swap_blocks(ForwardIt first, ForwardIt middle, 
             // свапаем левый блок с первой частью правого блока той же длины
 
             std::pair<ForwardIt, ForwardIt> rv_end_iterators = 
-                swap_blocks_parallel(leftBegin, rightBegin, leftLen, threadCount, pool);
+                swap_blocks_parallel(leftBegin, rightBegin, leftLen, threadCount, MIN_PARALLEL_LENGTH, pool);
 
             // после свапа левый блок сдвинулся вправо
             leftBegin = rightBegin;
@@ -276,7 +278,7 @@ ForwardIt rotate_forward_inplace_swap_blocks(ForwardIt first, ForwardIt middle, 
         } else {
             // левый блок больше, свапаем правый блок с началом левого блока той же длинны
             std::pair<ForwardIt, ForwardIt> rv_end_iterators = 
-                swap_blocks_parallel(leftBegin, rightBegin, rightLen, threadCount, pool);
+                swap_blocks_parallel(leftBegin, rightBegin, rightLen, threadCount, MIN_PARALLEL_LENGTH, pool);
 
             // теперь нужно обновить размер области слева и 
             // поменять leftBegin, который соответствует rv_end_iterators.first

@@ -72,8 +72,8 @@ void benchmark_rotate_generic(const Container& data, size_t middle, size_t threa
     std::cout << "Custom rotate swap blocks only (" << threads << " threads): " << t_sb / 1e6 << " ms\n";
     long long t_std = time_ns([&]() { run_std(); }, repeats);
     std::cout << "std::rotate: " << t_std / 1e6 << " ms\n\n";
-    std::cout << "speedup to single: " << double(t) / double(t_single) << "x\n";
-    std::cout << "speedup to std::rotate: " << double(t) / double(t_std) << "x\n";
+    std::cout << "speedup to single: " << double(t_single) / double(t) << "x\n";
+    std::cout << "speedup to std::rotate: " << double(t_std) / double(t) << "x\n";
     std::cout << "speedup low middle to std::rotate: " << double(t_std) / double(t_lm) << "x\n";
     std::cout << "speedup swap blocks to std::rotate: " << double(t_std) / double(t_sb) << "x\n\n\n";
 }

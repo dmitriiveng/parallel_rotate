@@ -16,7 +16,9 @@ int main() {
     size_t hw = std::thread::hardware_concurrency();
     if (hw == 0) hw = 4;
 
-    benchmark_rotate_generic(build<std::forward_list<int>>(10'000'000), 12432, hw, 10);
+    benchmark_rotate_generic(build<std::forward_list<int>>(10'000'000), 12'432, hw, 10);
+    benchmark_rotate_generic(build<std::forward_list<int>>(10'000'000), 6'232'432, hw, 10);
+    benchmark_rotate_generic(build<std::forward_list<int>>(100'000'000), 62'432'432, hw, 3);
 
     return 0;
 }
