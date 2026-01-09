@@ -1,7 +1,6 @@
 #pragma once
 
 #include "rotate_parallel.hpp"
-#include "rotate_parallel++.hpp"
 
 //benchmark helper
 template <typename F>
@@ -35,18 +34,25 @@ long long time_ns(F&& f, size_t iterations = 1) {
 template <typename Container>
 void benchmark_rotate_generic(const Container& data, size_t middle, size_t threads, size_t repeats) {
 
+    auto run_custom_sb = [&](size_t t) {
+        Container c = data;
+        auto it = c.begin();
+        std::advance(it, middle);
+        rotate_forward_inplace_swap_blocks(c.begin(), it, c.end(), t);
+    };
+
+    auto run_custom_lm = [&](size_t t) {
+        Container c = data;
+        auto it = c.begin();
+        std::advance(it, middle);
+        rotate_forward_inplace_low_middle(c.begin(), it, c.end(), t);
+    };
+
     auto run_custom = [&](size_t t) {
         Container c = data;
         auto it = c.begin();
         std::advance(it, middle);
         rotate_forward_inplace(c.begin(), it, c.end(), t);
-    };
-
-    auto run_custom2 = [&](size_t t) {
-        Container c = data;
-        auto it = c.begin();
-        std::advance(it, middle);
-        rotate_forward_inplace_low_middle(c.begin(), it, c.end(), t);
     };
 
     auto run_std = [&]() {
@@ -56,18 +62,20 @@ void benchmark_rotate_generic(const Container& data, size_t middle, size_t threa
         std::rotate(c.begin(), it, c.end());
     };
 
-    long long t1 = time_ns([&]() { run_custom(1); }, repeats);
-    long long tN = time_ns([&]() { run_custom(threads); }, repeats);
-    long long tN2 = time_ns([&]() { run_custom2(threads); }, repeats);
+    long long t_single = time_ns([&]() { run_custom(1); }, repeats);
+    std::cout << "Custom rotate (1 thread): " << t_single / 1e6 << " ms\n";
+    long long t = time_ns([&]() { run_custom(threads); }, repeats);
+    std::cout << "Custom rotate (" << threads << " threads): " << t / 1e6 << " ms\n";
+    long long t_lm = time_ns([&]() { run_custom_lm(threads); }, repeats);
+    std::cout << "Custom rotate low middle only (" << threads << " threads): " << t_lm / 1e6 << " ms\n";
+    long long t_sb = time_ns([&]() { run_custom_sb(threads); }, repeats);
+    std::cout << "Custom rotate swap blocks only (" << threads << " threads): " << t_sb / 1e6 << " ms\n";
     long long t_std = time_ns([&]() { run_std(); }, repeats);
-
-    //std::cout << "Size: " << data.size() << ", Middle: " << middle << "\n";
-    std::cout << "Custom rotate (1 thread): " << t1 / 1e6 << " ms\n";
-    std::cout << "Custom rotate (" << threads << " threads): " << tN / 1e6 << " ms\n";
-    std::cout << "Custom rotate 2 (" << threads << " threads): " << tN2 / 1e6 << " ms\n";
-    std::cout << "Speedup: " << double(t1) / double(tN) << "x\n";
-    std::cout << "std::rotate: " << t_std / 1e6 << " ms\n";
-    std::cout << "Speedup for std::rotate: " << double(t_std) / double(tN) << "x\n\n";
+    std::cout << "std::rotate: " << t_std / 1e6 << " ms\n\n";
+    std::cout << "speedup to single: " << double(t) / double(t_single) << "x\n";
+    std::cout << "speedup to std::rotate: " << double(t) / double(t_std) << "x\n";
+    std::cout << "speedup low middle to std::rotate: " << double(t_std) / double(t_lm) << "x\n";
+    std::cout << "speedup swap blocks to std::rotate: " << double(t_std) / double(t_sb) << "x\n\n\n";
 }
 
 //helper functions
