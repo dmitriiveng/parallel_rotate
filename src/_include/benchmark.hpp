@@ -32,6 +32,47 @@ long long time_ns(F&& f, size_t iterations = 1) {
 
 //benchmark
 template <typename Container>
+void test_rotate_generic(const Container& data, size_t middle, size_t threads, size_t repeats) {
+
+    Container std_data = data;
+    auto it = std_data.begin();
+    std::advance(it, middle);
+    std::rotate(std_data.begin(), it, std_data.end());
+
+    auto run_custom_sb = [&](size_t t) {
+        Container c = data;
+        auto it = c.begin();
+        std::advance(it, middle);
+        rotate_forward_inplace_swap_blocks(c.begin(), it, c.end(), t);
+        if (c == std_data) std::cout << "sb true" << std::endl;
+        else std::cout << "sb false" << std::endl;
+    };
+
+    auto run_custom_lm = [&](size_t t) {
+        Container c = data;
+        auto it = c.begin();
+        std::advance(it, middle);
+        rotate_forward_inplace_low_middle(c.begin(), it, c.end(), t);
+        if (c == std_data) std::cout << "lm true" << std::endl;
+        else std::cout << "lm false" << std::endl;
+    };
+
+    auto run_custom = [&](size_t t) {
+        Container c = data;
+        auto it = c.begin();
+        std::advance(it, middle);
+        rotate_forward_inplace(c.begin(), it, c.end(), t);
+        if (c == std_data) std::cout << "combined true" << std::endl;
+        else std::cout << "combined false" << std::endl;
+    };
+
+    run_custom_lm(threads);
+    run_custom_sb(threads);
+    run_custom(threads);
+}
+
+//benchmark
+template <typename Container>
 void benchmark_rotate_generic(const Container& data, size_t middle, size_t threads, size_t repeats) {
 
     auto run_custom_sb = [&](size_t t) {
