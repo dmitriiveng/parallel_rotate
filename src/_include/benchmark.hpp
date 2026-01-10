@@ -39,24 +39,6 @@ void test_rotate_generic(const Container& data, size_t middle, size_t threads, s
     std::advance(it, middle);
     std::rotate(std_data.begin(), it, std_data.end());
 
-    auto run_custom_sb = [&](size_t t) {
-        Container c = data;
-        auto it = c.begin();
-        std::advance(it, middle);
-        rotate_forward_inplace_swap_blocks(c.begin(), it, c.end(), t);
-        if (c == std_data) std::cout << "sb true" << std::endl;
-        else std::cout << "sb false" << std::endl;
-    };
-
-    auto run_custom_lm = [&](size_t t) {
-        Container c = data;
-        auto it = c.begin();
-        std::advance(it, middle);
-        rotate_forward_inplace_low_middle(c.begin(), it, c.end(), t);
-        if (c == std_data) std::cout << "lm true" << std::endl;
-        else std::cout << "lm false" << std::endl;
-    };
-
     auto run_custom = [&](size_t t) {
         Container c = data;
         auto it = c.begin();
@@ -65,29 +47,12 @@ void test_rotate_generic(const Container& data, size_t middle, size_t threads, s
         if (c == std_data) std::cout << "combined true" << std::endl;
         else std::cout << "combined false" << std::endl;
     };
-
-    run_custom_lm(threads);
-    run_custom_sb(threads);
     run_custom(threads);
 }
 
 //benchmark
 template <typename Container>
 void benchmark_rotate_generic(const Container& data, size_t middle, size_t threads, size_t repeats) {
-
-    auto run_custom_sb = [&](size_t t) {
-        Container c = data;
-        auto it = c.begin();
-        std::advance(it, middle);
-        rotate_forward_inplace_swap_blocks(c.begin(), it, c.end(), t);
-    };
-
-    auto run_custom_lm = [&](size_t t) {
-        Container c = data;
-        auto it = c.begin();
-        std::advance(it, middle);
-        rotate_forward_inplace_low_middle(c.begin(), it, c.end(), t);
-    };
 
     auto run_custom = [&](size_t t) {
         Container c = data;
@@ -107,16 +72,11 @@ void benchmark_rotate_generic(const Container& data, size_t middle, size_t threa
     std::cout << "Custom rotate (1 thread): " << t_single / 1e6 << " ms\n";
     long long t = time_ns([&]() { run_custom(threads); }, repeats);
     std::cout << "Custom rotate (" << threads << " threads): " << t / 1e6 << " ms\n";
-    long long t_lm = time_ns([&]() { run_custom_lm(threads); }, repeats);
-    std::cout << "Custom rotate low middle only (" << threads << " threads): " << t_lm / 1e6 << " ms\n";
-    long long t_sb = time_ns([&]() { run_custom_sb(threads); }, repeats);
-    std::cout << "Custom rotate swap blocks only (" << threads << " threads): " << t_sb / 1e6 << " ms\n";
+
     long long t_std = time_ns([&]() { run_std(); }, repeats);
     std::cout << "std::rotate: " << t_std / 1e6 << " ms\n\n";
     std::cout << "speedup to single: " << double(t_single) / double(t) << "x\n";
-    std::cout << "speedup to std::rotate: " << double(t_std) / double(t) << "x\n";
-    std::cout << "speedup low middle to std::rotate: " << double(t_std) / double(t_lm) << "x\n";
-    std::cout << "speedup swap blocks to std::rotate: " << double(t_std) / double(t_sb) << "x\n\n\n";
+    std::cout << "speedup to std::rotate: " << double(t_std) / double(t) << "x\n\n\n";
 }
 
 //helper functions
@@ -158,32 +118,12 @@ void test_cases() {
     }
 
     {
-        std::cout << "test_low_middle\n";
-        std::forward_list<int> v = {1,2,3,4,5};
-        print_container(v);
-        auto mid = v.begin();
-        std::advance(mid, 2);
-        rotate_forward_inplace_low_middle(v.begin(), mid, v.end(), 2);
-        print_container(v);
-    }
-
-    {
         std::cout << "test\n";
         std::forward_list<int> v = {1,2,3,4,5,6,7,8,9,10};
         print_container(v);
         auto mid = v.begin();
         std::advance(mid, 7);
         rotate_forward_inplace(v.begin(), mid, v.end(), 2);
-        print_container(v);
-    }
-
-    {
-        std::cout << "test_low_middle\n";
-        std::forward_list<int> v = {1,2,3,4,5,6,7,8,9,10};
-        print_container(v);
-        auto mid = v.begin();
-        std::advance(mid, 7);
-        rotate_forward_inplace_low_middle(v.begin(), mid, v.end(), 2);
         print_container(v);
     }
 
